@@ -1,0 +1,7 @@
+[tool.ruff]
+line-length = 110
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "B", "UP"]
+# Matrix names (M, K, P, R, Xfem, ...) follow the math, not snake_case.
+ignore = ["N802", "N803", "N806", "E741"]
