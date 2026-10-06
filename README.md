@@ -3,7 +3,8 @@
 Simulation code for the paper **"Real-time Estimator of Actuator Control and Health (REACH) on an Eel-Inspired Soft Robot"**
 by Zhangjingyi Jiang, Myungsun Park, Michael T. Tolley and Mark Campbell.
 
-Paper: <https://arxiv.org/html/2608.14865v1>
+Published at IEEE RoboSoft 2025: [doi:10.1109/RoboSoft63089.2025.11020927](https://doi.org/10.1109/RoboSoft63089.2025.11020927)
+· arXiv: <https://arxiv.org/html/2608.14865v1>
 
 REACH estimates actuator health for a soft robot that swims like an eel (anguilliform swimming). Actuator health
 is the ratio of the torque an actuator actually produces to the torque it was asked to produce:
@@ -144,11 +145,12 @@ three-actuator UCSD robot fish (Section VI) used the following, none of which is
 ## Citation
 
 ```bibtex
-@article{jiang2026reach,
-  title   = {Real-time Estimator of Actuator Control and Health ({REACH}) on an Eel-Inspired Soft Robot},
-  author  = {Jiang, Zhangjingyi and Park, Myungsun and Tolley, Michael T. and Campbell, Mark},
-  journal = {arXiv preprint arXiv:2608.14865},
-  year    = {2026}
+@inproceedings{jiang2025reach,
+  title     = {Real-time Estimator of Actuator Control and Health ({REACH}) on an Eel-Inspired Soft Robot},
+  author    = {Jiang, Zhangjingyi and Park, Myungsun and Tolley, Michael T. and Campbell, Mark},
+  booktitle = {2025 IEEE 8th International Conference on Soft Robotics (RoboSoft)},
+  year      = {2025},
+  doi       = {10.1109/RoboSoft63089.2025.11020927}
 }
 ```
 

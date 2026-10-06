@@ -34,7 +34,7 @@ from REACH_Fault_Estimation.fault_estimation.model import setup_system  # noqa: 
 
 # --- Settings ----------------------------------------------------------------
 EXPERIMENT = "actuator_failure"
-TF = 1.0  # final time [s]; the fault is injected at 1 s, so use TF > 1 to see it
+TF = 3.0  # final time [s]; the fault is injected at 1 s, so use TF > 1 to see it
 SEED = 0
 N_WORKERS = None  # parallel processes (None = all cores, 1 = serial)
 LOAD_SAVED = False
