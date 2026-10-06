@@ -6,34 +6,23 @@ by Zhangjingyi Jiang, Myungsun Park, Michael T. Tolley and Mark Campbell.
 Published at IEEE RoboSoft 2025: [doi:10.1109/RoboSoft63089.2025.11020927](https://doi.org/10.1109/RoboSoft63089.2025.11020927)
 · arXiv: <https://arxiv.org/html/2608.14865v1>
 
-REACH estimates actuator health for a soft robot that swims like an eel (anguilliform swimming). Actuator health
-is the ratio of the torque an actuator actually produces to the torque it was asked to produce:
+**Reach** estimates actuator health for a soft robot that swims like an eel (anguilliform swimming) using IMU or bend sensor measurement. A normalized-innovation chi-square test checks that the filter is statistically consistent.
+
+**Actuator Health** is the ratio of the torque an actuator actually produces to the torque it was asked to produce:
 
 - `0` means the actuator has failed completely
 - `1` means it works fully
 - values above `1` mean it is over-actuating
 
-REACH appends the health of each actuator to the state of a finite-element (FEM) model of the swimming robot. A
-sigma-point Kalman filter then estimates the robot state and the actuator health together, using GPS, IMU or bend
-sensor measurements. A normalized-innovation chi-square test checks that the filter is statistically consistent.
 
 ## How it works
 
-1. **Robot model (ASSRSimP).** The fish is a 1 m long elastic beam with no fixed ends, split into 20 finite
-   elements, with five torque actuators spread evenly along its length. The model includes quadratic hydrodynamic
-   drag, and the rigid-body pose is tracked apart from the body's deformation (`model.py`).
-2. **Control.** Each actuator receives a sinusoidal torque
-   `u_i = C_A·A_i·sin(C_ω·ω·t + φ_i) + C_τ^O·τ_i^O`. Three presets set the gait: linear swimming, wide turning
-   and tight turning (`config.CONTROL_PRESETS`).
-3. **Fault injection.** The true actuator health is `ek_true1` until `FAULT_TIME = 1 s` and `ek_true2` after it.
-   Each actuator's torque is multiplied by its health: `u_i^REACH = H_i·u_i`.
-4. **Sensors.** The sensor models are GPS (2D position), IMU (acceleration and angular rate) and bend sensors
-   (the angle between two marker segments on each actuator). A sensor placement such as `135` means sensors at
-   positions 1, 3 and 5, where position 1 is nearest the head (`measurements.py`).
-5. **Estimator.** A sigma-point (unscented) Kalman filter estimates a 134-element state: 126 FEM states, the
-   3-element rigid-body pose and the 5 actuator health values. It also records the windowed normalized innovation
-   squared, which is compared against chi-square bounds for filter validation (`spf.py`).
-6. **Scoring.** Each run is scored on two metrics:
+1. **Robot model (ASSRSimP):** The fish is an elastic beam with no fixed ends, split into finite elements, with torque actuators spread evenly along its length. The model includes quadratic hydrodynamic drag, and the rigid-body pose is tracked apart from the body's deformation (`model.py`).
+2. **Control:** Each actuator receives a sinusoidal torque `u_i = C_A·A_i·sin(C_ω·ω·t + φ_i) + C_τ^O·τ_i^O`. Three presets set the gait: linear swimming, wide turning and tight turning (`config.CONTROL_PRESETS`).
+3. **Fault injection:** The true actuator health is `ek_true1` until `FAULT_TIME = 1 s` and `ek_true2` after. Each actuator's torque is multiplied by its health: `u_i^REACH = H_i·u_i`.
+4. **Sensors:** The sensor models are GPS (2D position), IMU (acceleration and angular rate) and bend sensors (the bending angle of each actuator). A sensor placement such as `135` means sensors at positions 1, 3 and 5, where position 1 is nearest the head (`measurements.py`).
+5. **Estimator:** A sigma-point (unscented) Kalman filter estimates the state: FEM states, the 3-element rigid-body pose and each actuator health. It also records the windowed normalized innovation squared, which is compared against chi-square bounds for filter validation (`spf.py`).
+6. **Scoring:** Each run is scored on two metrics:
    - **Rise time:** how long after the fault the failed actuator's estimate takes to drop below 0.1.
    - **RMS error:** the error in the health estimates over the last 100 steps.
 
@@ -66,8 +55,7 @@ pip install -r requirements.txt   # numpy, scipy, matplotlib, threadpoolctl
 
 ## Usage
 
-The scripts import the package as `REACH_Fault_Estimation.fault_estimation`. Run them as modules from the folder
-that **contains** this repository:
+The scripts import the package as `REACH_Fault_Estimation.fault_estimation`. Run them as modules from the folder that **contains** this repository:
 
 ```bash
 cd ..                                            # parent of REACH_Fault_Estimation/
