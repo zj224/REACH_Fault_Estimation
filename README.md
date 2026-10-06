@@ -17,59 +17,82 @@ Published at IEEE RoboSoft 2025: [doi:10.1109/RoboSoft63089.2025.11020927](https
 
 ## How it works
 
-1. **Robot model (ASSRSimP):** The fish is an elastic beam with no fixed ends, split into finite elements, with torque actuators spread evenly along its length. The model includes quadratic hydrodynamic drag, and the rigid-body pose is tracked apart from the body's deformation (`model.py`).
-2. **Control:** Each actuator receives a sinusoidal torque
+### Robot model (ASSRSimP)
 
-   ```math
-   u_{1:n_\tau} = \left[C_A \cdot A_{1:n_\tau}\right] \sin\!\left(C_\omega \cdot \omega t + \phi_{1:n_\tau}\right) + C_\tau^O \cdot \tau^O_{1:n_\tau}
-   ```
+The fish is an elastic beam with no fixed ends, split into finite elements, with torque actuators spread evenly along its length. The model includes quadratic hydrodynamic drag, and the rigid-body pose is tracked apart from the body's deformation (`model.py`).
 
-   where $`n_\tau`$ is the number of actuators, $`A`$ the amplitudes, $`\phi`$ the phase shifts, $`\tau^O`$ the torque offsets and $`\omega`$ the oscillation frequency. The coefficients $`C_A`$ and $`C_\omega`$ control linear swimming and $`C_\tau^O`$ controls turning. Three presets set the gait: linear swimming, wide turning and tight turning (`config.CONTROL_PRESETS`).
-3. **Fault injection:** The true actuator health is `ek_true1` until `FAULT_TIME = 1 s` and `ek_true2` after. Each actuator's torque is multiplied by its health, and the health vector is appended to the state:
+### Control
 
-   ```math
-   u_i^{\text{REACH}} = H_i \cdot u_i, \qquad X^{\text{REACH}} = \begin{bmatrix} X \\ H \end{bmatrix}
-   ```
+Each actuator receives a sinusoidal torque:
 
-4. **Sensors:** The sensor models are GPS (2D position), IMU (acceleration and angular rate) and bend sensors (the bending angle of each actuator). A sensor placement such as `135` means sensors at positions 1, 3 and 5, where position 1 is nearest the head (`measurements.py`).
-5. **Estimator:** A sigma-point (unscented) Kalman filter estimates the state: FEM states, the 3-element rigid-body pose and each actuator health (`spf.py`). At each step, sigma points are drawn around the estimate and passed through the nonlinear dynamics $`f`$ and the measurement model $`h`$:
+$$
+u_{1:n_\tau} = \left[ C_A \cdot A_{1:n_\tau} \right] \sin\left( C_\omega \cdot \omega t + \phi_{1:n_\tau} \right) + C_\tau^O \cdot \tau^O_{1:n_\tau}
+$$
 
-   ```math
-   S_{k|k} = \operatorname{chol}(P_{k|k}), \qquad
-   \chi^0_{k|k} = \hat{x}_{k|k}, \qquad
-   \chi^{1:2n}_{k|k} = \hat{x}_{k|k} \cdot \mathbf{1}_n \pm n_\sigma S_{k|k}
-   ```
+where $n_\tau$ is the number of actuators, $A$ the amplitudes, $\phi$ the phase shifts, $\tau^O$ the torque offsets and $\omega$ the oscillation frequency. The coefficients $C_A$ and $C_\omega$ control linear swimming and $C_\tau^O$ controls turning. Three presets set the gait: linear swimming, wide turning and tight turning (`config.CONTROL_PRESETS`).
 
-   ```math
-   \chi^i_{k+1|k} = f\!\left(\chi^i_{k|k}\right), \qquad
-   \mathcal{Z}^i_{k+1|k} = h\!\left(\chi^i_{k+1|k}\right)
-   ```
+### Fault injection
 
-   **Filter validation.** The filter averages the normalized innovation squared over a window of $`N`$ steps:
+The true actuator health is `ek_true1` until `FAULT_TIME = 1 s` and `ek_true2` after. Each actuator's torque is multiplied by its health $H_i$, and the health vector is appended to the state:
 
-   ```math
-   \hat{z}_k = \sum_{i=0}^{2n} w_m^i \, \mathcal{Z}^i_{k|k-1}, \qquad
-   v_k = z_k - \hat{z}_k, \qquad
-   \lambda^{KF}_k(N) = \frac{1}{N} \sum_{k-N}^{k} v_k^\top S_{k|k}^{-1} v_k
-   ```
+$$
+u_i^{REACH} = H_i \cdot u_i
+$$
 
-   The filter is consistent when $`b_L < \lambda^{KF}_k(N) < b_U`$, with the chi-square bounds
+$$
+X^{REACH} = \begin{bmatrix} X \\ H \end{bmatrix}
+$$
 
-   ```math
-   b_L = \frac{\chi^{2\,-1}_{N n_z}\!\left(\tfrac{\alpha}{2}\right)}{N}, \qquad
-   b_U = \frac{\chi^{2\,-1}_{N n_z}\!\left(1-\tfrac{\alpha}{2}\right)}{N}
-   ```
+### Sensors
 
-   where $`\alpha`$ is the false positive rate (5 % here, `VALIDATION_GATE = 0.95`).
-6. **Scoring:** Each run is scored on two metrics:
-   - **Rise time:** how long after the fault the failed actuator's estimate takes to drop below 0.1.
-   - **RMS error:** the error in the health estimates over the last 100 steps:
+The sensor models are GPS (2D position), IMU (acceleration and angular rate) and bend sensors (the bending angle of each actuator). A sensor placement such as `135` means sensors at positions 1, 3 and 5, where position 1 is nearest the head (`measurements.py`).
 
-     ```math
-     \text{RMS} = \sqrt{\frac{1}{n_k n_\tau} \sum_{k}^{n_k} \sum_{i}^{n_\tau} \left(\hat{H}_i(t_k) - H_i(t_k)\right)^2}
-     ```
+### Estimator
 
-   The sensor placement study combines the two into a success score from 0 to 3 (`experiments.py`).
+A sigma-point (unscented) Kalman filter estimates the state: FEM states, the 3-element rigid-body pose and each actuator health (`spf.py`). At each step, sigma points are drawn around the estimate:
+
+$$
+S_{k|k} = \mathrm{chol}(P_{k|k}), \qquad \chi^0_{k|k} = \hat{x}_{k|k}, \qquad \chi^{1:2n}_{k|k} = \hat{x}_{k|k} \cdot 1_n \pm n_\sigma S_{k|k}
+$$
+
+They are then passed through the nonlinear dynamics $f$ and the measurement model $h$:
+
+$$
+\chi^i_{k+1|k} = f\left( \chi^i_{k|k} \right), \qquad Z^i_{k+1|k} = h\left( \chi^i_{k+1|k} \right)
+$$
+
+### Filter validation
+
+The filter averages the normalized innovation squared over a window of $N$ steps:
+
+$$
+\hat{z}_k = \sum_{i=0}^{2n} w_m^i Z^i_{k|k-1}, \qquad v_k = z_k - \hat{z}_k
+$$
+
+$$
+\lambda^{KF}_k(N) = \frac{1}{N} \sum_{k-N}^{k} v_k^T S_{k|k}^{-1} v_k
+$$
+
+The filter is consistent when $b_L < \lambda^{KF}_k(N) < b_U$, with the chi-square bounds
+
+$$
+b_L = \frac{F^{-1}_{\chi^2_{N n_z}}\left( \alpha / 2 \right)}{N}, \qquad b_U = \frac{F^{-1}_{\chi^2_{N n_z}}\left( 1 - \alpha / 2 \right)}{N}
+$$
+
+where $\alpha$ is the false positive rate (5% here, `VALIDATION_GATE = 0.95`).
+
+### Scoring
+
+Each run is scored on two metrics:
+
+- **Rise time:** how long after the fault the failed actuator's estimate takes to drop below 0.1.
+- **RMS error:** the error in the health estimates over the last 100 steps:
+
+$$
+RMS = \sqrt{ \frac{1}{n_k n_\tau} \sum_{k=1}^{n_k} \sum_{i=1}^{n_\tau} \left( \hat{H}_i(t_k) - H_i(t_k) \right)^2 }
+$$
+
+The sensor placement study combines the two into a success score from 0 to 3 (`experiments.py`).
 
 ## Repository layout
 
@@ -124,7 +147,7 @@ To choose an experiment, edit the settings block at the top of `main.py`:
 | `EXPERIMENT` | What it does | Paper |
 |---|---|---|
 | `actuator_failure` | Each sensor type (GPS, IMU, bend) × each single-actuator failure, with RMS error and rise time | Fig. 5, Fig. 6 |
-| `filter_validation` | Windowed normalized innovation squared against the chi-square bounds $`b_L`$ and $`b_U`$, for each sensor type | Fig. 4 |
+| `filter_validation` | Windowed normalized innovation squared against the chi-square bounds $b_L$ and $b_U$, for each sensor type | Fig. 4 |
 | `control_comparison` | Each gait × each single-actuator failure | Sec. V-C |
 | `control_repeats` | `control_comparison` repeated 5 times | Fig. 8 |
 | `sensor_failure` | Each sensor type with degraded placements, with actuator A3 failed | — |
@@ -160,9 +183,9 @@ print(result.ek[:, -1])                              # final health estimates
   by the velocities in the same order.
 - **Settings.** Noise values, initial covariances, the sigma-point scaling, the validation window and the
   success thresholds are in `fault_estimation/config.py`. Sensor noise follows the paper's Section IV-A:
-  - GPS: $`1\ \text{m}^2`$ per axis
-  - IMU: $`0.0061\ \text{m}^2/\text{s}^4`$ for acceleration and $`0.002\ \text{rad}^2/\text{s}^2`$ for angular rate
-  - Bend sensor: $`0.001\ \text{rad}^2`$
+  - GPS: 1 m² per axis
+  - IMU: 0.0061 m²/s⁴ for acceleration and 0.002 rad²/s² for angular rate
+  - Bend sensor: 0.001 rad²
 
 ## Scope
 
