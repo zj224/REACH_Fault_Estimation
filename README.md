@@ -40,7 +40,7 @@ u_i^{REACH} = H_i \cdot u_i
 $$
 
 $$
-X^{REACH} = \begin{bmatrix} X \\ H \end{bmatrix}
+X^{REACH} = \begin{bmatrix} X \cr H \end{bmatrix}
 $$
 
 ### Sensors
@@ -58,7 +58,7 @@ $$
 They are then passed through the nonlinear dynamics $f$ and the measurement model $h$:
 
 $$
-\chi^i_{k+1|k} = f\left( \chi^i_{k|k} \right), \qquad Z^i_{k+1|k} = h\left( \chi^i_{k+1|k} \right)
+\chi^i_{k+1|k} = f\left( \chi^i_{k|k} \right), \qquad \mathcal{Z}^{i}_{k+1|k} = h(\chi^{i}_{k+1|k})
 $$
 
 ### Filter validation
@@ -66,7 +66,7 @@ $$
 The filter averages the normalized innovation squared over a window of $N$ steps:
 
 $$
-\hat{z}_k = \sum_{i=0}^{2n} w_m^i Z^i_{k|k-1}, \qquad v_k = z_k - \hat{z}_k
+\hat{z}_k = \sum_{i=0}^{2n} w_m^i \mathcal{Z}^i_{k|k-1}, \qquad v_k = z_k - \hat{z}_k
 $$
 
 $$
