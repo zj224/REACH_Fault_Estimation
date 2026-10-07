@@ -76,7 +76,7 @@ $$
 The filter is consistent when $b_L < \lambda^{KF}_k(N) < b_U$, with the chi-square bounds
 
 $$
-b_L = \frac{F^{-1}_{\chi^2_{N n_z}}\left( \alpha / 2 \right)}{N}, \qquad b_U = \frac{F^{-1}_{\chi^2_{N n_z}}\left( 1 - \alpha / 2 \right)}{N}
+b_L = \frac{Inv\lbrace\chi^2_{Nnz}\rbrace (\frac{\alpha}{2})}{N}, \ b_U = \frac{Inv\lbrace\chi^2_{Nnz}\rbrace (1-\frac{\alpha}{2})}{N}
 $$
 
 where $\alpha$ is the false positive rate (5% here, `VALIDATION_GATE = 0.95`).
