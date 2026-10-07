@@ -70,7 +70,7 @@ $$
 $$
 
 $$
-\lambda^{KF}_k(N) = \frac{1}{N} \sum_{k-N}^{k} v_k^T S_{k|k}^{-1} v_k
+\chi^2_{Nnz} = \sum_{k-N}^{k} v_{k}' \ast inv(S_{k|k}) \ast v_{k}, \qquad \lambda^{KF}_k(N) = \frac{\chi^2_{Nnz}}{N}
 $$
 
 The filter is consistent when $b_L < \lambda^{KF}_k(N) < b_U$, with the chi-square bounds
