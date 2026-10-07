@@ -48,15 +48,13 @@ def element_matrices(rho, l, E, r):
 def setup_system(p):
     """Build the free-free beam model and discretize it with step ``p.dt``."""
     rho = 1200  # kg/m^3, approximate oar fish
-    E = 1 * 10**6  # N/m^2
-    l = p.L / p.n  # element length
     ni = 3  # DOF per node
 
     # Assemble global mass and stiffness (no boundary conditions: free-free beam)
     M = np.zeros((p.ndof, p.ndof))
     K = np.zeros((p.ndof, p.ndof))
     for i in range(p.n):
-        mi, ki = element_matrices(rho, l, E, p.rvec[i])
+        mi, ki = element_matrices(rho, p.l_elem[i], p.E_elem[i], p.rvec[i])
         s = slice(ni * i, ni * (i + 2))
         K[s, s] += ki
         M[s, s] += mi
@@ -189,7 +187,7 @@ def simulate(p, system):
     Xrigid = np.zeros((3, p.nt))
     for k in range(1, p.nt):
         ek = p.ek_true1 if k <= p.k_fault else p.ek_true2
-        uk = ek[:, None] * get_controls(p, k)
+        uk = p.input_gains(ek) * get_controls(p, k)
         Xfem[:, [k]], Xrigid[:, [k]] = step_dynamics(Xfem[:, [k - 1]], Xrigid[:, [k - 1]], uk, p, system)
     return Xfem, Xrigid
 

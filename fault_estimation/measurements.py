@@ -49,12 +49,15 @@ def sensor_setup(p):
         return SensorSetup(p.msmt_choice, R, vel_idx=np.array(vel), gyro_idx=np.array(gyro))
 
     if p.msmt_choice == Sensor.BEND:
-        markers = [_x_row(node) for i in positions for node in BEND_MARKER_NODES[i]]
-        return SensorSetup(
-            p.msmt_choice, np.diag(np.full(len(positions), BEND_VAR)), marker_idx=np.array(markers)
-        )
+        return bend_sensor_setup([BEND_MARKER_NODES[i] for i in positions], BEND_VAR)
 
     raise ValueError(f"Unknown sensor {p.msmt_choice!r}")
+
+
+def bend_sensor_setup(marker_nodes, var):
+    """Bend sensors from a list of 4 marker node numbers per sensor, each with noise variance ``var``."""
+    markers = [_x_row(node) for nodes in marker_nodes for node in nodes]
+    return SensorSetup(Sensor.BEND, np.diag(np.full(len(marker_nodes), var)), marker_idx=np.array(markers))
 
 
 def bend_angles(marker_idx, Xinertial):

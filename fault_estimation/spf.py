@@ -31,12 +31,12 @@ class SPFResult:
     lam_window: np.ndarray  # moving average of lam over VALIDATION_WINDOW steps (nt,)
     b_lower: float  # chi-square acceptance bounds for lam_window
     b_upper: float
-    nin: int  # number of actuators
+    n_health: int  # number of actuator health states
 
     @property
     def ek(self):
-        """Actuator health estimates (nin, nt)."""
-        return self.xhat[-self.nin :]
+        """Actuator health estimates (n_health, nt)."""
+        return self.xhat[-self.n_health :]
 
 
 @dataclass
@@ -45,14 +45,14 @@ class _Filter:
 
     system: object
     sensors: object
-    Q: np.ndarray
+    Q: np.ndarray  # process noise added at every prediction
     R: np.ndarray
     WM: np.ndarray  # mean weights
     WC: np.ndarray  # covariance weights
     nsig: float
 
 
-def _make_filter(p, system, sensors):
+def _make_filter(p, system, sensors, Q=None):
     nx, nsig = p.nx, SIGMA_SCALE
     Wi = 0.5 / nsig**2
     W0M = (nsig**2 - nx) / nsig**2
@@ -60,22 +60,21 @@ def _make_filter(p, system, sensors):
     WM = np.concatenate([[W0M], np.full(2 * nx, Wi)])
     WC = np.concatenate([[W0C], np.full(2 * nx, Wi)])
 
-    q_state, q_ek = PROCESS_NOISE[p.msmt_choice]
-    Q = np.diag(np.concatenate([q_state * np.tile([1, 1, 0.1], 2 * p.nn + 1), np.full(p.nin, q_ek)]))
+    if Q is None:
+        q_state, q_ek = PROCESS_NOISE[p.msmt_choice]
+        Q = process_noise(p, q_state, q_ek) / np.sqrt(p.dt)
     R = sensors.R * (GPS_FILTER_R_SCALE if p.msmt_choice == Sensor.GPS else 1)
     return _Filter(system, sensors, Q, R, WM, WC, nsig)
 
 
-def _initial_covariance(p):
+def process_noise(p, q_state, q_ek):
+    """Diagonal Q: [q, q, 0.1 q] per node and rigid pose, ``q_ek`` per health state."""
+    return np.diag(np.concatenate([q_state * np.tile([1, 1, 0.1], 2 * p.nn + 1), np.full(p.n_health, q_ek)]))
+
+
+def initial_covariance(p, pos_per_node, vel_per_node, rigid, ek_var):
     return np.diag(
-        np.concatenate(
-            [
-                np.tile(P0_POS_PER_NODE, p.nn),
-                np.tile(P0_VEL_PER_NODE, p.nn),
-                P0_RIGID,
-                np.square(P0_EK_STD),
-            ]
-        )
+        np.concatenate([np.tile(pos_per_node, p.nn), np.tile(vel_per_node, p.nn), rigid, ek_var])
     )
 
 
@@ -87,8 +86,7 @@ def _sigma_offsets(P, nsig):
 
 def _predict_state(X, p, f, k):
     """Propagate sigma points (nx, nsp) through the dynamics; ek is held constant."""
-    ek = X[p.sl_ek]
-    uk = ek * get_controls(p, k)
+    uk = p.input_gains(X[p.sl_ek]) * get_controls(p, k)
     Xfem, Xrigid = step_dynamics(X[: p.ns], X[p.sl_rigid], uk, p, f.system)
     X_new = X.copy()
     X_new[: p.ns] = Xfem
@@ -96,13 +94,22 @@ def _predict_state(X, p, f, k):
     return X_new
 
 
-def spf_step(p, f, x_prior, P_prior, z, k):
-    """One predict + update step. Returns the posterior mean, covariance and NIS value."""
-    # predict
+def spf_predict(p, f, x_prior, P_prior, k):
+    """Propagate the mean and covariance one step."""
     X = _predict_state(x_prior[:, None] + _sigma_offsets(P_prior, f.nsig), p, f, k)
     x_pred = X @ f.WM
     dX = X - x_pred[:, None]
-    P_pred = (dX * f.WC) @ dX.T + f.Q / np.sqrt(p.dt)
+    return x_pred, (dX * f.WC) @ dX.T + f.Q
+
+
+def spf_step(p, f, x_prior, P_prior, z, k):
+    """One predict + update step. Returns the posterior mean, covariance and NIS value.
+
+    If ``z`` contains NaN (no measurement this step), only the prediction is made.
+    """
+    x_pred, P_pred = spf_predict(p, f, x_prior, P_prior, k)
+    if np.isnan(z).any():
+        return x_pred, P_pred, np.nan
 
     # update (sigma points redrawn around the prediction to include Q)
     dX = _sigma_offsets(P_pred, f.nsig)
@@ -121,13 +128,18 @@ def spf_step(p, f, x_prior, P_prior, z, k):
     return x_post, P_post, nis
 
 
-def run_spf_estimation(p, system, sensors, Z):
-    """Run the filter over measurements Z (nz, nt)."""
-    f = _make_filter(p, system, sensors)
+def run_spf_estimation(p, system, sensors, Z, Q=None, P0=None):
+    """Run the filter over measurements Z (nz, nt); NaN columns are steps without a measurement.
+
+    ``Q`` and ``P0`` default to the simulation tuning in config.
+    """
+    f = _make_filter(p, system, sensors, Q)
 
     x = np.zeros(p.nx)
     x[p.sl_ek] = p.ek_predict
-    P = _initial_covariance(p)
+    if P0 is None:
+        P0 = initial_covariance(p, P0_POS_PER_NODE, P0_VEL_PER_NODE, P0_RIGID, np.square(P0_EK_STD))
+    P = P0
 
     xhat = np.zeros((p.nx, p.nt))
     P_diag = np.zeros((p.nx, p.nt))
@@ -146,4 +158,4 @@ def run_spf_estimation(p, system, sensors, Z):
         if k >= N:
             lam_window[k] = lam[k - N + 1 : k + 1].mean()
 
-    return SPFResult(xhat, P_diag, lam, lam_window, b_lower, b_upper, p.nin)
+    return SPFResult(xhat, P_diag, lam, lam_window, b_lower, b_upper, p.n_health)

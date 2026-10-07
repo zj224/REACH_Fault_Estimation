@@ -1,6 +1,6 @@
 # REACH: Real-time Estimator of Actuator Control and Health
 
-Simulation code for the paper **"Real-time Estimator of Actuator Control and Health (REACH) on an Eel-Inspired Soft Robot"**
+Code for the paper **"Real-time Estimator of Actuator Control and Health (REACH) on an Eel-Inspired Soft Robot"**
 by Zhangjingyi Jiang, Myungsun Park, Michael T. Tolley and Mark Campbell.
 
 Published at IEEE RoboSoft 2025: [doi:10.1109/RoboSoft63089.2025.11020927](https://doi.org/10.1109/RoboSoft63089.2025.11020927)
@@ -94,18 +94,43 @@ $$
 
 The sensor placement study combines the two into a success score from 0 to 3 (`experiments.py`).
 
+### Experimental validation
+
+REACH is also run on bend sensor data recorded from the three-actuator UCSD robot fish (`experimental.py`). The model is changed to match the robot: 28 elements in 7 sections (head, A1, coupling, A2, coupling, A3, tail), with the section lengths from paper Table I. The Young's modulus of each actuator is tuned to the full-health trial (A1, A2, A3 = 1.4096, 0.9121, 0.9934 MPa), the head and couplings are rigid plastic (2 GPa), and the tail is soft silicone (1 MPa).
+
+In the video calibration, each actuator's bend angle is measured from the markers on either side of it:
+
+$$
+v_i = m^L_i - m^R_i, \qquad v_{i+1} = m^L_{i+1} - m^R_{i+1}
+$$
+
+$$
+\theta_i = \mathrm{atan2}\left( v_i \times v_{i+1}, \ v_i \cdot v_{i+1} \right)
+$$
+
+A quadratic maps the normalized sensor output $x_i$ to that angle:
+
+$$
+\theta_i = C_1 x_i^2 + C_2 x_i + C_3, \qquad x_i = \frac{\text{raw}_i - 20000}{20000}
+$$
+
+The coefficients are in `config.BEND_CALIBRATION`. The filter uses the same angle definition between model nodes as its measurement model. Each trial's angles have their mean removed. The data is recorded at 12 Hz and the filter runs at 100 Hz, so the filter only updates on steps that have a measurement.
+
 ## Repository layout
 
 ```
 REACH_Fault_Estimation/
 ├── main.py                  # run one experiment (choose it with EXPERIMENT) and plot it
 ├── main_sensor_choice.py    # sensor quantity / placement study (paper Fig. 7)
+├── main_experimental.py     # REACH on the recorded robot data (paper Fig. 9)
+├── data/experimental/       # bend sensor recordings, one CSV per actuator health trial
 ├── fault_estimation/
 │   ├── config.py            # Params, sensor locations, noise, filter and scoring settings
 │   ├── model.py             # FEM fish model, controls, hydrodynamics, simulation
 │   ├── measurements.py      # GPS / IMU / bend sensor models
 │   ├── spf.py               # sigma-point filter for state + actuator health
 │   ├── experiments.py       # batches of runs (parallel), metrics, save/load
+│   ├── experimental.py      # load recorded data, calibrate, run REACH on each trial
 │   └── plotting.py          # one plot_<experiment> function per experiment
 ├── requirements.txt
 └── pyproject.toml           # ruff settings
@@ -127,6 +152,7 @@ The scripts import the package as `REACH_Fault_Estimation.fault_estimation`. Run
 cd ..                                            # parent of REACH_Fault_Estimation/
 python -m REACH_Fault_Estimation.main
 python -m REACH_Fault_Estimation.main_sensor_choice
+python -m REACH_Fault_Estimation.main_experimental
 ```
 
 Running `python main.py` from inside the repository fails with `ModuleNotFoundError`.
@@ -159,6 +185,8 @@ To choose an experiment, edit the settings block at the top of `main.py`:
 sensors, every one-, two-, three- and four-sensor placement, and each actuator failure. It then plots the
 success-score map from paper Fig. 7.
 
+`main_experimental.py` runs REACH on the nine recorded trials from paper Fig. 9 and plots the estimated health of A1–A3 against the true values. Change `TRIALS` to choose trials; `(0.9, 1, 1)` is also recorded. The nine trials take about a minute on all cores.
+
 Results are saved as compressed `.npz` files in `results/`.
 
 ### Using the package directly
@@ -175,11 +203,37 @@ result, (Xfem, Xrigid) = experiments.run_case(p, setup_system(p), seed=0)
 print(result.ek[:, -1])                              # final health estimates
 ```
 
+## Experimental data
+
+`data/experimental/` holds one CSV per trial, named by the true health of A1 (head), A2 and A3 in percent. Each file has no header and 500 rows at 12 Hz, with these columns:
+
+| Column | Contents |
+|---|---|
+| 1 | time (s) |
+| 2–4 | pump input for A1, A2, A3 |
+| 5–7 | raw bend sensor output for A1, A2, A3 |
+
+Full-capacity pump inputs were 575, 345 and 115 ml/min for A1, A2 and A3; a degraded actuator's input is scaled by its health. The original file names give the input setting per actuator and the recording time (2024-09-08).
+
+| File | Health [A1 A2 A3] | Original file |
+|---|---|---|
+| `health_100_100_100.csv` | [1 1 1] | `50_30_10_240908_1248_18.csv` |
+| `health_050_100_100.csv` | [0.5 1 1] | `25_30_10_240908_1327_14.csv` |
+| `health_000_100_100.csv` | [0 1 1] | `00_30_10_240908_1328_30.csv` |
+| `health_100_000_000.csv` | [1 0 0] | `50_00_00_240908_1339_25.csv` |
+| `health_000_100_000.csv` | [0 1 0] | `00_30_00_240908_1336_09.csv` |
+| `health_000_000_100.csv` | [0 0 1] | `00_00_10_240908_1308_12.csv` |
+| `health_080_100_100.csv` | [0.8 1 1] | `40_30_10_240908_1325_44.csv` |
+| `health_080_050_100.csv` | [0.8 0.5 1] | `40_15_10_240908_1333_20.csv` |
+| `health_050_080_100.csv` | [0.5 0.8 1] | `25_24_10_240908_1331_50.csv` |
+| `health_090_100_100.csv` | [0.9 1 1] | `45_30_10_240908_1323_45.csv` (not in the paper) |
+
 ## Conventions
 
 - **Actuator numbering.** In the state vector, `ek` index 0 is the **tail** and index 4 is the **head**. Plots
   follow the paper and label actuators A1 (head) to A5 (tail), so state index `i` appears as `A{5 - i}`.
-- **Node numbering.** FEM nodes run from 1 (tail) to 21 (head). Each node has `[x, y, θ]` positions, followed
+- **Experiment numbering.** For the robot fish, health vectors in the filter are ordered A3, A2, A1 (tail end first), like the simulation. Trial names, `TRIALS` and the plots use [A1, A2, A3].
+- **Node numbering.** FEM nodes run from 1 (tail) to 21 (head), or 29 (head) for the robot fish model. Each node has `[x, y, θ]` positions, followed
   by the velocities in the same order.
 - **Settings.** Noise values, initial covariances, the sigma-point scaling, the validation window and the
   success thresholds are in `fault_estimation/config.py`. Sensor noise follows the paper's Section IV-A:
@@ -189,12 +243,7 @@ print(result.ek[:, -1])                              # final health estimates
 
 ## Scope
 
-This repository contains the simulation studies from Section V of the paper. The experimental validation on the
-three-actuator UCSD robot fish (Section VI) used the following, none of which is included here:
-
-- bend sensor data recorded from the physical robot
-- a quadratic calibration from sensor output to bend angle
-- a 7-segment model adapted to that robot
+This repository contains the simulation studies from Section V of the paper and the experimental validation from Section VI. It does not include the video processing used to fit the bend sensor calibration; only the resulting coefficients are included.
 
 ## Citation
 

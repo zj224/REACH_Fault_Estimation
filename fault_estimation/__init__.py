@@ -7,5 +7,6 @@ model         FEM fish model: system matrices, controls, hydrodynamics, simulati
 measurements  sensor models (GPS, IMU, bend sensors)
 spf           sigma-point filter estimating the state and actuator health
 experiments   batches of runs (parallel), scoring, saving/loading results
+experimental  REACH on bend sensor data recorded from the robot fish (paper Sec. VI)
 plotting      one ``plot_<experiment>`` function per experiment
 """

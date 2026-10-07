@@ -277,3 +277,27 @@ def plot_animation(p, r):
     """Animate the estimated fish, then the true one."""
     fish_animation(p, fem_to_inertial(r["xhat"][: p.ns], p, r["xhat"][p.sl_rigid]), fig_num=1)
     fish_animation(p, fem_to_inertial(r["Xfem_true"], p, r["Xrigid_true"]), fig_num=2)
+
+
+EXP_COLORS = ["r", "g", "b"]  # A1, A2, A3 as in paper Fig. 9
+
+
+def plot_experimental_validation(p, r):
+    """Estimated (solid) and true (dotted) health of A1-A3 for each recorded trial."""
+    n = len(r["health"])
+    n_cols = int(np.ceil(np.sqrt(n)))
+    n_rows = int(np.ceil(n / n_cols))
+    fig, axes = plt.subplots(n_rows, n_cols, num=1, clear=True, squeeze=False, sharex=True, sharey=True)
+    for ax, health, ek_hat in zip(axes.flat, r["health"], r["ek_hat"], strict=False):
+        for a, color in enumerate(EXP_COLORS):  # a = 0 is A1, stored last in ek_hat
+            ax.plot(p.t, ek_hat[-1 - a], color=color, linewidth=1.5, label=f"A{a + 1}")
+            ax.axhline(health[a], color=color, linestyle=":", linewidth=1)
+        ax.set_title("[" + " ".join(f"{h:g}" for h in health) + "]")
+        ax.set_xlim([-0.5, p.tf + 0.5])
+        ax.set_ylim([-0.1, 1.5])
+    for ax in axes.flat[n:]:
+        ax.set_visible(False)
+    axes[n_rows // 2, 0].set_ylabel("Actuator Health")
+    axes[-1, n_cols // 2].set_xlabel("Time (s)")
+    handles, labels = axes[0, 0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc="upper center", ncol=3, frameon=False)
